@@ -241,6 +241,7 @@ var
   s, x, y: Integer;
   cell: TGxyCell;
 begin
+  // Clear quadrant
   for y := 0 to 7 do
     for x := 0 to 7 do
       Quadrant[y, x] := scEmpty;
@@ -248,10 +249,13 @@ begin
   qx := EnterpriseX div 8;
   qy := EnterpriseY div 8;
 
+  // Load galaxy metadata
   cell := Galaxy[qy, qx];
 
+  // Place Enterprise
   Quadrant[EnterpriseY mod 8, EnterpriseX mod 8] := scEnterprise;
 
+  // Stars
   for s := 1 to cell.Stars do
   begin
     repeat
@@ -261,6 +265,7 @@ begin
     Quadrant[y, x] := scStar;
   end;
 
+  // Bases
   for s := 1 to cell.Bases do
   begin
     repeat
@@ -270,6 +275,7 @@ begin
     Quadrant[y, x] := scBase;
   end;
 
+  // Klingons (0‑based, safe)
   for s := 0 to cell.Klingons - 1 do
   begin
     repeat
@@ -284,13 +290,19 @@ begin
     Klingons[s].Energy := 200;
   end;
 
+  // Clear unused Klingon slots
   for s := cell.Klingons to 2 do
   begin
     Klingons[s].Row := -1;
     Klingons[s].Col := -1;
     Klingons[s].Energy := 0;
   end;
+
+  // IMPORTANT: do NOT rewrite Galaxy[qy, qx].Klingons/Bases/Stars here.
+  // Galaxy already holds the authoritative counts.
 end;
+
+
 
 function TGameState.DistanceToKlingon(Index: Integer): Double;
 var
@@ -300,7 +312,7 @@ begin
   ey := EnterpriseY mod 8;
   Result := Sqrt(Sqr(ex - Klingons[Index].Col) + Sqr(ey - Klingons[Index].Row));
   if Result <= 0 then
-    Result := 0.1;
+	Result := 0.1;
 end;
 
 procedure TGameState.DestroyKlingon(Index: Integer);
@@ -309,11 +321,11 @@ var
   leaveGhost: Boolean;
 begin
   if (Index < 0) or (Index > 2) then
-    Exit;
+	Exit;
 
   // Already fully removed? Then nothing to do.
   if (Klingons[Index].Row = -1) and (Klingons[Index].Col = -1) then
-    Exit;
+	Exit;
 
   qx := EnterpriseX div 8;
   qy := EnterpriseY div 8;
@@ -322,15 +334,15 @@ begin
   leaveGhost := (Damage[dsComputer] > 0) and (Random < 0.15);
 
   if (Klingons[Index].Row >= 0) and (Klingons[Index].Row <= 7) and
-     (Klingons[Index].Col >= 0) and (Klingons[Index].Col <= 7) then
+	 (Klingons[Index].Col >= 0) and (Klingons[Index].Col <= 7) then
   begin
-    if leaveGhost then
-    begin
-      // Leave a ghost Klingon on sensors only
-      Quadrant[Klingons[Index].Row, Klingons[Index].Col] := scKlingon;
-      AddMessage('Sensor anomaly detected — ghost Klingon signature remains.');
-    end
-    else
+	if leaveGhost then
+	begin
+	  // Leave a ghost Klingon on sensors only
+	  Quadrant[Klingons[Index].Row, Klingons[Index].Col] := scKlingon;
+	  AddMessage('Sensor anomaly detected — ghost Klingon signature remains.');
+	end
+	else
       Quadrant[Klingons[Index].Row, Klingons[Index].Col] := scEmpty;
   end;
 
@@ -472,7 +484,6 @@ var
   OldQX, OldQY, CurQX, CurQY: Integer;
   StepCount, Step: Integer;
   nextX, nextY: Integer;
-  prevX, prevY: Integer;
   sx, sy: Integer;
   StepsMoved: Integer;
   dx, dy: Integer;
@@ -515,11 +526,6 @@ begin
 
   for Step := 1 to StepCount do
   begin
-    // remember last valid position
-    prevX := EnterpriseX;
-    prevY := EnterpriseY;
-
-    // step one sector
     nextX := EnterpriseX + dx;
     nextY := EnterpriseY + dy;
 
@@ -532,27 +538,16 @@ begin
     CurQX := nextX div 8;
     CurQY := nextY div 8;
 
-    // Quadrant change
+    // Quadrant change: move first, then build NEW quadrant
     if (CurQX <> OldQX) or (CurQY <> OldQY) then
     begin
       Galaxy[OldQY, OldQX].Scanned := True;
       Galaxy[CurQY, CurQX].Scanned := True;
 
-      InitializeQuadrant;
-
-      sx := nextX mod 8;
-      sy := nextY mod 8;
-
-      if Quadrant[sy, sx] <> scEmpty then
-      begin
-        EnterpriseX := prevX;
-        EnterpriseY := prevY;
-        AddMessage('Movement blocked by object at quadrant boundary.');
-        Break;
-      end;
-
       EnterpriseX := nextX;
       EnterpriseY := nextY;
+
+      InitializeQuadrant;  // now uses the NEW qx/qy
 
       OldQX := CurQX;
       OldQY := CurQY;
@@ -570,7 +565,6 @@ begin
       Break;
     end;
 
-    // Move into next sector
     EnterpriseX := nextX;
     EnterpriseY := nextY;
     Inc(StepsMoved);
@@ -617,29 +611,29 @@ begin
 
   if (EnergyToFire <= 0) or (EnergyToFire > Energy) then
   begin
-    AddMessage('Invalid phaser energy.');
-    Exit;
+	AddMessage('Invalid phaser energy.');
+	Exit;
   end;
 
   Energy := Energy - EnergyToFire;
 
   for i := 0 to 2 do
   begin
-    if Klingons[i].Energy <= 0 then
-      Continue;
+	if Klingons[i].Energy <= 0 then
+	  Continue;
 
-    Dist := DistanceToKlingon(i);
-    Hit := Trunc(EnergyToFire / Dist * Random);
+	Dist := DistanceToKlingon(i);
+	Hit := Trunc(EnergyToFire / Dist * Random);
 
-    Klingons[i].Energy := Max(Klingons[i].Energy - Hit, 0);
+	Klingons[i].Energy := Max(Klingons[i].Energy - Hit, 0);
 
-    if Klingons[i].Energy = 0 then
-    begin
-      AddMessage(IntToStr(Hit) + ' unit hit. Klingon destroyed.');
-      DestroyKlingon(i);
-    end
-    else
-      AddMessage(IntToStr(Hit) + ' unit hit on Klingon.');
+	if Klingons[i].Energy = 0 then
+	begin
+	  AddMessage(IntToStr(Hit) + ' unit hit. Klingon destroyed.');
+	  DestroyKlingon(i);
+	end
+	else
+	  AddMessage(IntToStr(Hit) + ' unit hit on Klingon.');
   end;
 
   KlingonAttack;
