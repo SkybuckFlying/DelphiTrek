@@ -51,8 +51,23 @@ begin
   end;
 end;
 
+procedure PlayRandomShutdown(Renderer: ITrekRenderer);
 var
-  QuitGame: Boolean = False;   // <--- GLOBAL FLAG
+  R: Integer;
+begin
+  R := Random(4);  // 0..3
+
+  case R of
+    0: Renderer.CRTShutdown;
+    1: Renderer.FadeOut;
+    2: Renderer.SelfDestructSequence;
+    3: Renderer.WarpOutAnimation;
+  end;
+end;
+
+
+var
+  QuitGame: Boolean = False;   // GLOBAL FLAG
 
 procedure RunGame;
 var
@@ -167,16 +182,67 @@ begin
             end;
           end;
 
-        'Q':  // <--- FIXED QUIT
-          begin
-            Renderer.DrawPrompt('Quit game? (Y/N): ');
-            Readln(Cmd);
-            if (Cmd <> '') and (UpCase(Cmd[1]) = 'Y') then
-            begin
-              QuitGame := True;  // <--- SIGNAL OUTER LOOP
-              Exit;              // <--- EXIT RunGame IMMEDIATELY
-            end;
-          end;
+		'Q':
+		begin
+		  Renderer.DrawPrompt('Quit game? (Y/N/F=fast): ');
+		  Readln(Cmd);
+
+		  if Cmd = '' then Continue;
+
+		  case UpCase(Cmd[1]) of
+
+			'N': Continue;  // cancel quit
+
+			'F': begin
+			  QuitGame := True;
+			  Exit;  // no animations
+			end;
+
+			'Y': begin
+			  QuitGame := True;
+
+			  // Determine victory or defeat
+			  if Game.RemainingKlingons = 0 then
+			  begin
+				// === OPTION A: VICTORY CINEMATIC ===
+				Renderer.DrawStarfleetSeal;
+				Sleep(400);
+
+				Renderer.WarpCoreHum;
+				Renderer.DrawCaptainsLog(Game);
+				Sleep(600);
+
+				Renderer.DrawDebrief(Game);
+				Renderer.DrawMissionGrade(Game);
+
+				Writeln;
+				Writeln('Press ENTER to continue...');
+				Readln;
+
+				Renderer.DrawGoodbyeScreen;
+				Sleep(400);
+
+				Renderer.FadeOut;
+				Exit;
+			  end
+			  else
+			  begin
+				// === OPTION B: DEFEAT CINEMATIC ===
+				Renderer.DrawCaptainsLog(Game);
+				Renderer.DrawDebrief(Game);
+
+				Writeln;
+				Writeln('Press ENTER to continue...');
+				Readln;
+
+				PlayRandomShutdown(Renderer);
+				Exit;
+			  end;
+			end;
+
+		  end; // case
+		end;
+
 
       else
         Game.AddMessage('Unknown command. Press H for help.');
@@ -197,11 +263,13 @@ var
   Again: string;
 
 begin
+  Randomize;
+  QuitGame := False;
+
   repeat
     RunGame;
-
     if QuitGame then
-      Break;   // <--- EXIT PROGRAM IMMEDIATELY
+      Break;
 
     Write('Play again? (Y/N): ');
     Readln(Again);

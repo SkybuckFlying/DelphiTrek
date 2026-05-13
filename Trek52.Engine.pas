@@ -33,6 +33,8 @@ type
 
   TDamageArray = array[TDamageSystem] of Integer;
 
+  TGameState = class;  // <--- forward declaration
+
   ITrekRenderer = interface
     ['{C5F4C5C4-5C3E-4F0F-9C0E-9F0F0C0A0B0C}']
     procedure ClearScreen;
@@ -46,6 +48,21 @@ type
 	procedure DrawContextHelp(const Command: Char);
     procedure DrawHelpScreen;
 	procedure DrawCommandBar;
+
+	// NEW CINEMATIC METHODS
+	procedure DrawCaptainsLog(Game: TGameState);
+	procedure DrawDebrief(Game: TGameState);
+    procedure DrawMissionGrade(Game: TGameState);
+
+	procedure DrawGoodbyeScreen;
+	procedure DrawStarfleetSeal;
+	procedure WarpCoreHum;
+	procedure WarpOutAnimation;
+	procedure ScanlineOverlay;
+	procedure SelfDestructSequence;
+	procedure CRTShutdown;
+	procedure FadeOut;
+
   end;
 
   TGameState = class
@@ -53,7 +70,14 @@ type
     FRenderer: ITrekRenderer;
     FMessages: TArray<string>;
     FGameOver: Boolean;
-    FCondition: string;
+	FCondition: string;
+
+    FKlingonsDestroyed: Integer;
+    FQuadrantsVisited: Integer;
+    FBasesDocked: Integer;
+    FRepairsDone: Integer;
+    FLastQuadrantX: Integer;
+	FLastQuadrantY: Integer;
   public
 	Galaxy: TGalaxy;
 	Quadrant: TQuadrant;
@@ -101,7 +125,12 @@ type
     procedure CheckGameOver;
 
     property GameOver: Boolean read FGameOver;
-    property Condition: string read FCondition;
+	property Condition: string read FCondition;
+
+    property KlingonsDestroyed: Integer read FKlingonsDestroyed;
+    property QuadrantsVisited: Integer read FQuadrantsVisited;
+    property BasesDocked: Integer read FBasesDocked;
+	property RepairsDone: Integer read FRepairsDone;
   end;
 
 implementation
@@ -152,6 +181,13 @@ begin
   Shields := 0;
   Torpedoes := 10;
   Stardates := 30;
+
+  FKlingonsDestroyed := 0;
+  FQuadrantsVisited := 0;
+  FBasesDocked := 0;
+  FRepairsDone := 0;
+  FLastQuadrantX := -1;
+  FLastQuadrantY := -1;
 
   for var d := Low(TDamageSystem) to High(TDamageSystem) do
     Damage[d] := 0;
