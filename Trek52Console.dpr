@@ -51,6 +51,9 @@ begin
   end;
 end;
 
+var
+  QuitGame: Boolean = False;   // <--- GLOBAL FLAG
+
 procedure RunGame;
 var
   Renderer: ITrekRenderer;
@@ -69,19 +72,27 @@ begin
     while not Game.GameOver do
     begin
       Game.RefreshScreen;
+      Renderer.DrawCommandBar;
       Game.ClearMessages;
 
-      Renderer.DrawPrompt('Command (W/P/T/S/L/A): ');
+      Renderer.DrawPrompt('Command: ');
       Readln(Cmd);
       if Cmd = '' then
         Continue;
       C := UpCase(Cmd[1]);
 
-	  Renderer.DrawContextHelp(C);
+      Renderer.DrawContextHelp(C);
 
       case C of
 
-        'W':  // Warp
+        'H':
+          begin
+            Renderer.DrawHelpScreen;
+            Readln;
+            Continue;
+          end;
+
+        'W':
           begin
             Course := ReadIntInRange('Course (1-8, C=cancel): ', 1, 8);
             if Course = -999999 then
@@ -100,7 +111,7 @@ begin
             Game.DoWarp(Course, WarpFactor);
           end;
 
-        'P':  // Phasers
+        'P':
           begin
             EnergyToFire := ReadIntInRange(
               'Phaser energy (1-' + IntToStr(Game.Energy) + ', C=cancel): ',
@@ -115,19 +126,19 @@ begin
             Game.FirePhasers(EnergyToFire);
           end;
 
-        'T':  // Torpedoes
+        'T':
           begin
             Course := ReadIntInRange('Torpedo course (1-8, C=cancel): ', 1, 8);
             if Course = -999999 then
             begin
               Game.AddMessage('Torpedo launch cancelled.');
-			  Continue;
+              Continue;
             end;
 
             Game.FireTorpedo(Course);
           end;
 
-        'S':  // Shields
+        'S':
           begin
             EnergyToFire := ReadIntInRange(
               'New shield level (0-' + IntToStr(Game.Energy + Game.Shields) + ', C=cancel): ',
@@ -142,10 +153,10 @@ begin
             Game.SetShields(EnergyToFire);
           end;
 
-        'L':  // Long-range scan
+        'L':
           Game.DoLongRangeScan;
 
-        'A':  // Abandon ship
+        'A':
           begin
             Renderer.DrawPrompt('Abandon ship? (Y/N): ');
             Readln(Cmd);
@@ -156,14 +167,19 @@ begin
             end;
           end;
 
+        'Q':  // <--- FIXED QUIT
+          begin
+            Renderer.DrawPrompt('Quit game? (Y/N): ');
+            Readln(Cmd);
+            if (Cmd <> '') and (UpCase(Cmd[1]) = 'Y') then
+            begin
+              QuitGame := True;  // <--- SIGNAL OUTER LOOP
+              Exit;              // <--- EXIT RunGame IMMEDIATELY
+            end;
+          end;
+
       else
-        Game.AddMessage('Unknown command. Valid commands:');
-        Game.AddMessage('  W = Warp');
-        Game.AddMessage('  P = Phasers');
-        Game.AddMessage('  T = Torpedoes');
-        Game.AddMessage('  S = Shields');
-        Game.AddMessage('  L = Long-range scan');
-        Game.AddMessage('  A = Abandon ship');
+        Game.AddMessage('Unknown command. Press H for help.');
       end;
 
       Game.CheckGameOver;
@@ -183,6 +199,10 @@ var
 begin
   repeat
     RunGame;
+
+    if QuitGame then
+      Break;   // <--- EXIT PROGRAM IMMEDIATELY
+
     Write('Play again? (Y/N): ');
     Readln(Again);
   until (Again = '') or (UpCase(Again[1]) <> 'Y');

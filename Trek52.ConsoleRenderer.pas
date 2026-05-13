@@ -24,6 +24,8 @@ type
 
     // NEW:
     procedure DrawContextHelp(const Command: Char);
+    procedure DrawHelpScreen;
+    procedure DrawCommandBar;
   end;
 
 implementation
@@ -210,7 +212,107 @@ begin
 end;
 
 //
-// NEW: Context-sensitive help panel
+// NEW: Single-line command bar
+//
+{
+procedure TConsoleRenderer.DrawCommandBar;
+begin
+  SetColor('1;37');
+  Writeln('Commands: W=Warp  P=Phasers  T=Torpedoes  S=Shields  L=Scan  A=Abandon  H=Help  Q=Quit');
+  ResetColor;
+  Writeln;
+end;
+}
+
+// colorized command bar
+procedure TConsoleRenderer.DrawCommandBar;
+begin
+  // Label
+  SetColor('1;37');  // bright white
+  Write('Commands: ');
+  ResetColor;
+
+  // W = Warp (green)
+  WriteColored('W', '1;32'); Write('=Warp  ');
+
+  // P = Phasers (yellow)
+  WriteColored('P', '1;33'); Write('=Phasers  ');
+
+  // T = Torpedoes (red)
+  WriteColored('T', '1;31'); Write('=Torpedoes  ');
+
+  // S = Shields (cyan)
+  WriteColored('S', '1;36'); Write('=Shields  ');
+
+  // L = Scan (white)
+  WriteColored('L', '1;37'); Write('=Scan  ');
+
+  // A = Abandon (magenta)
+  WriteColored('A', '1;35'); Write('=Abandon  ');
+
+  // H = Help (blue)
+  WriteColored('H', '1;34'); Write('=Help  ');
+
+  // Q = Quit (white)
+  WriteColored('Q', '1;37'); Write('=Quit');
+
+  Writeln;
+  Writeln;
+end;
+
+
+//
+// NEW: Full help screen
+//
+procedure TConsoleRenderer.DrawHelpScreen;
+begin
+  SetColor('1;37');
+  Writeln('=== COMMANDS ===');
+  ResetColor;
+
+  Writeln('W = Warp');
+  Writeln('P = Phasers');
+  Writeln('T = Torpedoes');
+  Writeln('S = Shields');
+  Writeln('L = Long-range scan');
+  Writeln('A = Abandon ship');
+  Writeln('H = Help');
+  Writeln('Q = Quit game');
+  Writeln;
+
+  SetColor('1;37');
+  Writeln('=== DIRECTION SYSTEM ===');
+  ResetColor;
+
+  Writeln('        4  3  2');
+  Writeln('         \ | /');
+  Writeln('        5--E--1');
+  Writeln('         / | \');
+  Writeln('        6  7  8');
+  Writeln;
+
+  SetColor('1;37');
+  Writeln('=== MOVEMENT ===');
+  ResetColor;
+
+  Writeln('Movement inside a quadrant is done using WARP.');
+  Writeln('You do not move one sector at a time.');
+  Writeln;
+  Writeln('- Course (1–8) sets the direction.');
+  Writeln('- Warp factor sets the distance.');
+  Writeln('- Small warp factors (0.1–0.3) move a few sectors.');
+  Writeln('- Larger warp factors move across the quadrant or into the next one.');
+  Writeln;
+  Writeln('Examples:');
+  Writeln('  W, Course=1, Warp=0.1  -> move 1 sector east');
+  Writeln('  W, Course=8, Warp=0.2  -> move 2 sectors southeast');
+  Writeln('  W, Course=3, Warp=1.0  -> move across the quadrant north');
+  Writeln;
+end;
+
+
+//
+// NEW: Context-sensitive help
 //
 procedure TConsoleRenderer.DrawContextHelp(const Command: Char);
 begin

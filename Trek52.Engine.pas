@@ -44,6 +44,8 @@ type
 	procedure DrawPrompt(const Prompt: string);
 
 	procedure DrawContextHelp(const Command: Char);
+    procedure DrawHelpScreen;
+	procedure DrawCommandBar;
   end;
 
   TGameState = class
