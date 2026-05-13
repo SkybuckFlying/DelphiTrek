@@ -21,6 +21,9 @@ type
     procedure DrawDamage(const State: TObject);
     procedure DrawMessages(const Msgs: TArray<string>);
     procedure DrawPrompt(const Prompt: string);
+
+    // NEW:
+    procedure DrawContextHelp(const Command: Char);
   end;
 
 implementation
@@ -70,36 +73,13 @@ begin
     for x := 0 to 7 do
     begin
       case Q[y, x] of
-        scEmpty:
-          begin
-            C := '.';
-            Color := '0;37'; // gray/white
-          end;
-        scStar:
-          begin
-            C := '*';
-            Color := '0;33'; // yellow
-          end;
-        scBase:
-          begin
-            C := 'B';
-            Color := '0;36'; // cyan
-          end;
-        scKlingon:
-          begin
-            C := 'K';
-            Color := '0;31'; // red
-          end;
-        scEnterprise:
-          begin
-            C := 'E';
-            Color := '0;32'; // green
-          end;
+        scEmpty:      begin C := '.'; Color := '0;37'; end;
+        scStar:       begin C := '*'; Color := '0;33'; end;
+        scBase:       begin C := 'B'; Color := '0;36'; end;
+        scKlingon:    begin C := 'K'; Color := '0;31'; end;
+        scEnterprise: begin C := 'E'; Color := '0;32'; end;
       else
-        begin
-          C := '?';
-          Color := '0;37';
-        end;
+        begin C := '?'; Color := '0;37'; end;
       end;
 
       Write(' ');
@@ -139,9 +119,9 @@ begin
 
       if (row = erow) and (col = ecol) then
       begin
-        Color := '1;32'; // bright green for current quadrant
+        Color := '1;32';
         s := '(' + s + ')';
-        s := s.PadRight(6); // keep fixed width
+        s := s.PadRight(6);
       end
       else
       begin
@@ -173,11 +153,11 @@ begin
   Writeln(Format('KLINGONS:  %4d', [G.RemainingKlingons]));
 
   if G.Condition = 'RED' then
-    WriteColoredLine(Format('CONDITION: %s', [G.Condition]), '1;31') // bright red
+    WriteColoredLine('CONDITION: RED', '1;31')
   else if G.Condition = 'DOCKED' then
-    WriteColoredLine(Format('CONDITION: %s', [G.Condition]), '1;36') // bright cyan
+    WriteColoredLine('CONDITION: DOCKED', '1;36')
   else
-    WriteColoredLine(Format('CONDITION: %s', [G.Condition]), '1;32'); // bright green
+    WriteColoredLine('CONDITION: GREEN', '1;32');
 
   Writeln;
 end;
@@ -198,7 +178,7 @@ begin
     if G.Damage[d] > 0 then
       WriteColoredLine(
         Format('%-12s : TTR %3d', [G.DamageName(d), G.Damage[d]]),
-        '0;31' // red for damaged
+        '0;31'
       )
     else
       Writeln(Format('%-12s : Working', [G.DamageName(d)]));
@@ -227,6 +207,70 @@ begin
   SetColor('1;37');
   Write(Prompt);
   ResetColor;
+end;
+
+//
+// NEW: Context-sensitive help panel
+//
+procedure TConsoleRenderer.DrawContextHelp(const Command: Char);
+begin
+  SetColor('1;37');
+
+  case Command of
+
+    'W': begin
+      Writeln('=== WARP NAVIGATION ===');
+      ResetColor;
+      Writeln('        4  3  2');
+      Writeln('         \ | /');
+      Writeln('        5--E--1');
+      Writeln('         / | \');
+      Writeln('        6  7  8');
+      Writeln('Enter course (1–8) and warp factor.');
+    end;
+
+    'T': begin
+      Writeln('=== TORPEDO FIRING ARC ===');
+      ResetColor;
+      Writeln('        4  3  2');
+      Writeln('         \ | /');
+      Writeln('        5--E--1');
+      Writeln('         / | \');
+      Writeln('        6  7  8');
+      Writeln('Enter torpedo course (1–8).');
+    end;
+
+    'P': begin
+      Writeln('=== PHASERS ===');
+      ResetColor;
+      Writeln('Phasers fire in all directions.');
+      Writeln('No course required.');
+      Writeln('Enter energy amount.');
+    end;
+
+    'S': begin
+      Writeln('=== SHIELDS ===');
+      ResetColor;
+      Writeln('Adjust shield energy level.');
+      Writeln('No course required.');
+    end;
+
+    'L': begin
+      Writeln('=== LONG-RANGE SCAN ===');
+      ResetColor;
+      Writeln('Shows Klingons, bases, and stars in adjacent quadrants.');
+      Writeln('No course required.');
+    end;
+
+    'A': begin
+      Writeln('=== ABANDON SHIP ===');
+      ResetColor;
+      Writeln('This action ends the game.');
+    end;
+
+  end;
+
+  Writeln;
 end;
 
 end.

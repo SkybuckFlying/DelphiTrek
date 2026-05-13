@@ -77,6 +77,8 @@ begin
         Continue;
       C := UpCase(Cmd[1]);
 
+	  Renderer.DrawContextHelp(C);
+
       case C of
 
         'W':  // Warp

@@ -41,7 +41,9 @@ type
     procedure DrawStatus(const State: TObject);
     procedure DrawDamage(const State: TObject);
     procedure DrawMessages(const Msgs: TArray<string>);
-    procedure DrawPrompt(const Prompt: string);
+	procedure DrawPrompt(const Prompt: string);
+
+	procedure DrawContextHelp(const Command: Char);
   end;
 
   TGameState = class
