@@ -273,6 +273,12 @@ begin
 
     Write('Play again? (Y/N): ');
     Readln(Again);
-  until (Again = '') or (UpCase(Again[1]) <> 'Y');
+
+    // Default to YES on empty input
+    if Again = '' then
+      Again := 'Y';
+
+  until UpCase(Again[1]) <> 'Y';
 end.
+
 

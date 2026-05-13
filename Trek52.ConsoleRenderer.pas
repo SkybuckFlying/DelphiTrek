@@ -9,14 +9,16 @@ uses
 type
   TConsoleRenderer = class(TInterfacedObject, ITrekRenderer)
   private
-    procedure SetColor(const Code: string);
+	procedure SetColor(const Code: string);
     procedure ResetColor;
     procedure WriteColored(const S, Code: string);
     procedure WriteColoredLine(const S, Code: string);
   public
     procedure ClearScreen;
-    procedure DrawQuadrant(const Q: TQuadrant);
-    procedure DrawGalaxy(const G: TGalaxy; EntX, EntY: Integer);
+
+	procedure DrawQuadrant(const Game: TGameState);
+	procedure DrawGalaxy(const Game: TGameState);
+
     procedure DrawStatus(const State: TObject);
     procedure DrawDamage(const State: TObject);
     procedure DrawMessages(const Msgs: TArray<string>);
@@ -76,51 +78,90 @@ begin
   Write(#27'[2J'#27'[H');
 end;
 
-procedure TConsoleRenderer.DrawQuadrant(const Q: TQuadrant);
+procedure TConsoleRenderer.DrawQuadrant(const Game: TGameState);
 var
   y, x: Integer;
-  C: Char;
-  Color: string;
 begin
   SetColor('1;37');
   Writeln('=== QUADRANT ===');
   ResetColor;
 
+  // SR Scanner blackout
+  if Game.Damage[dsSRScan] > 0 then
+  begin
+    for y := 0 to 7 do
+    begin
+      for x := 0 to 7 do
+        Write('   ');  // blank
+	  Writeln;
+	end;
+	Writeln;
+	Exit;
+  end;
+
+  // Normal rendering
   for y := 0 to 7 do
   begin
-    for x := 0 to 7 do
-    begin
-      case Q[y, x] of
-		scEmpty:      begin C := '.'; Color := '0;37'; end;
-        scStar:       begin C := '*'; Color := '0;33'; end;
-        scBase:       begin C := 'B'; Color := '0;36'; end;
-        scKlingon:    begin C := 'K'; Color := '0;31'; end;
-        scEnterprise: begin C := 'E'; Color := '0;32'; end;
-      else
-        begin C := '?'; Color := '0;37'; end;
-      end;
-
-      Write(' ');
-      WriteColored(C, Color);
-      Write(' ');
-    end;
-    Writeln;
+	for x := 0 to 7 do
+	begin
+	  case Game.Quadrant[y, x] of
+		scEmpty:      WriteColored(' . ', '0;37');
+		scStar:       WriteColored(' * ', '0;33');
+		scBase:       WriteColored(' B ', '0;36');
+		scKlingon:    WriteColored(' K ', '0;31');
+		scEnterprise: WriteColored(' E ', '0;32');
+	  end;
+	end;
+	Writeln;
   end;
   Writeln;
 end;
 
-procedure TConsoleRenderer.DrawGalaxy(const G: TGalaxy; EntX, EntY: Integer);
+function VisibleLen(const S: string): Integer;
+var
+  i: Integer;
+begin
+  Result := 0;
+  i := 1;
+  while i <= Length(S) do
+  begin
+    if (S[i] = #27) and (i + 1 <= Length(S)) and (S[i+1] = '[') then
+    begin
+      // Skip ANSI escape sequence
+      Inc(i, 2);
+      while (i <= Length(S)) and not CharInSet(S[i], ['A'..'Z', 'a'..'z']) do
+        Inc(i);
+      Inc(i);
+    end
+    else
+    begin
+      Inc(Result);
+      Inc(i);
+    end;
+  end;
+end;
+
+
+function PadVisible(const S: string; TargetWidth: Integer): string;
+var
+  pad: Integer;
+begin
+  pad := TargetWidth - VisibleLen(S);
+  if pad < 0 then pad := 0;
+  Result := S + StringOfChar(' ', pad);
+end;
+
+
+procedure TConsoleRenderer.DrawGalaxy(const Game: TGameState);
 var
   row, col: Integer;
   cell: TGxyCell;
-  s: string;
   erow, ecol: Integer;
-  Color: string;
+  raw, colored, cellText: string;
   k, b, s2: Integer;
-  part: string;
 begin
-  erow := EntY div 8;
-  ecol := EntX div 8;
+  erow := Game.EnterpriseY div 8;
+  ecol := Game.EnterpriseX div 8;
 
   SetColor('1;37');
   Writeln('=== GALAXY MAP ===');
@@ -130,49 +171,81 @@ begin
   begin
     for col := 0 to 7 do
     begin
-      cell := G[row, col];
+      cell := Game.Galaxy[row, col];
 
-      if not cell.Scanned then
-      begin
-        s := '***';
-      end
-      else
-      begin
-        // Extract digits
-        k  := cell.Klingons;
-        b  := cell.Bases;
-        s2 := cell.Stars;
+	  // === COMPUTER DAMAGED: CORRUPTED MAP ===
+		if Game.Damage[dsComputer] > 0 then
+		begin
+			if (row = erow) and (col = ecol) then
+			begin
+				// Enterprise quadrant ALWAYS shown correctly
+				raw := Format('%.3d', [
+					Game.Galaxy[row, col].Klingons * 100 +
+					Game.Galaxy[row, col].Bases * 10 +
+					Game.Galaxy[row, col].Stars
+				]);
 
-        // Build colorized 3-digit code
-        part :=
-          #27'[31m' + IntToStr(k)  +   // red for Klingons
-          #27'[36m' + IntToStr(b)  +   // cyan for Bases
-          #27'[33m' + IntToStr(s2) +   // yellow for Stars
-          #27'[0m';
+				cellText := '(' + raw + ')';
+				WriteColored(PadVisible(cellText, 6), '0;32');
+				Continue;
+			end;
 
-        s := part;
-      end;
+			// All other quadrants corrupted
+			if Random < 0.5 then
+				raw := '***'
+			else
+				raw := Format('%.3d', [Random(999)]);
 
-      // Highlight Enterprise quadrant
-      if (row = erow) and (col = ecol) then
-      begin
-        Color := '1;32'; // green
-        s := '(' + s + ')';
-        s := s.PadRight(6);
-      end
-      else
-      begin
-        Color := '0;37';
-        s := (' ' + s + ' ').PadRight(6);
-      end;
+			WriteColored(PadVisible(' ' + raw + ' ', 6), '0;37');
+			Continue;
+		end;
 
-      WriteColored(s, Color);
-    end;
-    Writeln;
+	  // === NORMAL MAP ===
+	  if not cell.Scanned then
+	  begin
+		raw := '***';  // always 3 chars
+		colored := raw;
+	  end
+	  else
+	  begin
+		k  := cell.Klingons;
+		b  := cell.Bases;
+		s2 := cell.Stars;
+
+		raw := Format('%.3d', [k*100 + b*10 + s2]);  // always 3 chars
+
+		// Colorize each digit but keep visible width = 3
+		colored :=
+		  #27'[31m' + raw[1] +   // Klingons
+		  #27'[36m' + raw[2] +   // Bases
+		  #27'[33m' + raw[3] +   // Stars
+		  #27'[0m';
+	  end;
+
+		// === ENTERPRISE QUADRANT ===
+		if (row = erow) and (col = ecol) then
+		begin
+		  cellText :=
+			#27'[32m(' + #27'[0m' +
+			colored +
+			#27'[32m)' + #27'[0m';
+
+		  Write(PadVisible(cellText, 6));
+		end
+		else
+		begin
+		  cellText := ' ' + colored + ' ';
+		  WriteColored(PadVisible(cellText, 6), '0;37');
+		end;
+
+	end;
+
+	Writeln;
   end;
 
   Writeln;
 end;
+
 
 
 procedure TConsoleRenderer.DrawStatus(const State: TObject);

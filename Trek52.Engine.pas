@@ -1,4 +1,4 @@
-unit Trek52.Engine;
+﻿unit Trek52.Engine;
 
 interface
 
@@ -38,8 +38,10 @@ type
   ITrekRenderer = interface
     ['{C5F4C5C4-5C3E-4F0F-9C0E-9F0F0C0A0B0C}']
     procedure ClearScreen;
-    procedure DrawQuadrant(const Q: TQuadrant);
-    procedure DrawGalaxy(const G: TGalaxy; EntX, EntY: Integer);
+
+	procedure DrawQuadrant(const Game: TGameState);
+	procedure DrawGalaxy(const Game: TGameState);
+
     procedure DrawStatus(const State: TObject);
     procedure DrawDamage(const State: TObject);
     procedure DrawMessages(const Msgs: TArray<string>);
@@ -163,8 +165,8 @@ begin
     Exit;
 
   FRenderer.ClearScreen;
-  FRenderer.DrawQuadrant(Quadrant);
-  FRenderer.DrawGalaxy(Galaxy, EnterpriseX, EnterpriseY);
+  FRenderer.DrawQuadrant(Self);
+  FRenderer.DrawGalaxy(Self);
   FRenderer.DrawStatus(Self);
   FRenderer.DrawDamage(Self);
   FRenderer.DrawMessages(FMessages);
@@ -196,7 +198,7 @@ begin
     for col := 0 to 7 do
     begin
       r := Random;
-	  k := 0; b := 0; s := 0;
+	  k := 0; b := 0;
 
       if r > 0.80 then k := 1;
       if r > 0.95 then k := 2;
@@ -304,24 +306,44 @@ end;
 procedure TGameState.DestroyKlingon(Index: Integer);
 var
   qx, qy: Integer;
+  leaveGhost: Boolean;
 begin
-  if (Index < 0) or (Index > 2) then Exit;
-  if Klingons[Index].Energy <= 0 then Exit;
+  if (Index < 0) or (Index > 2) then
+    Exit;
+
+  // Already fully removed? Then nothing to do.
+  if (Klingons[Index].Row = -1) and (Klingons[Index].Col = -1) then
+    Exit;
 
   qx := EnterpriseX div 8;
   qy := EnterpriseY div 8;
 
+  // Decide if a "sensor ghost" remains in the quadrant
+  leaveGhost := (Damage[dsComputer] > 0) and (Random < 0.15);
+
   if (Klingons[Index].Row >= 0) and (Klingons[Index].Row <= 7) and
      (Klingons[Index].Col >= 0) and (Klingons[Index].Col <= 7) then
-    Quadrant[Klingons[Index].Row, Klingons[Index].Col] := scEmpty;
+  begin
+    if leaveGhost then
+    begin
+      // Leave a ghost Klingon on sensors only
+      Quadrant[Klingons[Index].Row, Klingons[Index].Col] := scKlingon;
+      AddMessage('Sensor anomaly detected — ghost Klingon signature remains.');
+    end
+    else
+      Quadrant[Klingons[Index].Row, Klingons[Index].Col] := scEmpty;
+  end;
 
   if Galaxy[qy, qx].Klingons > 0 then
     Dec(Galaxy[qy, qx].Klingons);
+
+  Inc(FKlingonsDestroyed);
 
   Klingons[Index].Energy := 0;
   Klingons[Index].Row := -1;
   Klingons[Index].Col := -1;
 end;
+
 
 procedure TGameState.DestroyKlingonAt(Row, Col: Integer);
 var
@@ -372,12 +394,25 @@ end;
 procedure TGameState.DoRandomRepair;
 var
   Sys: TDamageSystem;
+  quip: Integer;
 begin
   Sys := TDamageSystem(Random(7));
   if Damage[Sys] > 0 then
   begin
-    Damage[Sys] := 0;
-    AddMessage(DamageName(Sys) + ' fully repaired.');
+	Damage[Sys] := 0;
+	Inc(FRepairsDone);
+
+	quip := Random(3);
+	case quip of
+	  0: AddMessage('Spock repaired ' + DamageName(Sys) + ' using a new technique.');
+	  1: begin
+		   AddMessage('Scotty exaggerated the time to repair the ' + DamageName(Sys) + '.');
+		 end;
+	  2: begin
+		   AddMessage('McCoy repaired the ' + DamageName(Sys) + '.');
+		   AddMessage('Turns out he''s not just a doctor.');
+		 end;
+	end;
   end;
 end;
 
@@ -398,6 +433,13 @@ procedure TGameState.UpdateCondition;
 var
   qx, qy : Integer;
 begin
+  // If computer is down, we can't trust condition
+  if Damage[dsComputer] > 0 then
+  begin
+    FCondition := 'UNKNOWN';
+    Exit;
+  end;
+
   if IsDocked then
   begin
     Shields := 0;
@@ -420,11 +462,27 @@ begin
 end;
 
 procedure TGameState.DoWarp(Course: Integer; WarpFactor: Double);
+
+const
+  // Course 1..8 -> dx, dy (Y grows downward)
+  DirDX: array[1..8] of Integer = ( +1, +1,  0, -1, -1, -1,  0, +1 );
+  DirDY: array[1..8] of Integer = (  0, -1, -1, -1,  0, +1, +1, +1 );
+
 var
-  Theta: Double;
-  NewX, NewY: Double;
-  OldQX, OldQY, NewQX, NewQY: Integer;
+  OldQX, OldQY, CurQX, CurQY: Integer;
+  StepCount, Step: Integer;
+  nextX, nextY: Integer;
+  prevX, prevY: Integer;
+  sx, sy: Integer;
+  StepsMoved: Integer;
+  dx, dy: Integer;
 begin
+  if (Course < 1) or (Course > 8) then
+  begin
+    AddMessage('Invalid course.');
+    Exit;
+  end;
+
   if Damage[dsWarp] > 0 then
   begin
     AddMessage('Engines damaged. Max warp 0.2');
@@ -438,41 +496,98 @@ begin
     AddMessage('Engines shut down due to low energy.');
   end;
 
-  Theta := (Course - 1) * PI / 4;
+  if WarpFactor <= 0 then
+  begin
+    AddMessage('Insufficient energy for warp.');
+    Exit;
+  end;
 
-  NewX := EnterpriseX + Cos(Theta) * WarpFactor * 8;
-  NewY := EnterpriseY - Sin(Theta) * WarpFactor * 8;
+  StepCount := Round(WarpFactor * 8);
+  if StepCount <= 0 then Exit;
 
-  if NewX < 0 then NewX := 0;
-  if NewX > 63 then NewX := 63;
-  if NewY < 0 then NewY := 0;
-  if NewY > 63 then NewY := 63;
+  dx := DirDX[Course];
+  dy := DirDY[Course];
 
   OldQX := EnterpriseX div 8;
   OldQY := EnterpriseY div 8;
 
-  EnterpriseX := Round(NewX);
-  EnterpriseY := Round(NewY);
+  StepsMoved := 0;
 
-  NewQX := EnterpriseX div 8;
-  NewQY := EnterpriseY div 8;
+  for Step := 1 to StepCount do
+  begin
+    // remember last valid position
+    prevX := EnterpriseX;
+    prevY := EnterpriseY;
 
-  if (OldQX <> NewQX) or (OldQY <> NewQY) then
-  begin
-    Galaxy[OldQY, OldQX].Scanned := True;
-    Galaxy[NewQY, NewQX].Scanned := True;
-    InitializeQuadrant;
-  end
-  else
-  begin
-    for var y := 0 to 7 do
-      for var x := 0 to 7 do
-        if Quadrant[y, x] = scEnterprise then
-          Quadrant[y, x] := scEmpty;
-    Quadrant[EnterpriseY mod 8, EnterpriseX mod 8] := scEnterprise;
+    // step one sector
+    nextX := EnterpriseX + dx;
+    nextY := EnterpriseY + dy;
+
+    // Clamp to galaxy bounds
+    if nextX < 0 then nextX := 0;
+    if nextX > 63 then nextX := 63;
+    if nextY < 0 then nextY := 0;
+    if nextY > 63 then nextY := 63;
+
+    CurQX := nextX div 8;
+    CurQY := nextY div 8;
+
+    // Quadrant change
+    if (CurQX <> OldQX) or (CurQY <> OldQY) then
+    begin
+      Galaxy[OldQY, OldQX].Scanned := True;
+      Galaxy[CurQY, CurQX].Scanned := True;
+
+      InitializeQuadrant;
+
+      sx := nextX mod 8;
+      sy := nextY mod 8;
+
+      if Quadrant[sy, sx] <> scEmpty then
+      begin
+        EnterpriseX := prevX;
+        EnterpriseY := prevY;
+        AddMessage('Movement blocked by object at quadrant boundary.');
+        Break;
+      end;
+
+      EnterpriseX := nextX;
+      EnterpriseY := nextY;
+
+      OldQX := CurQX;
+      OldQY := CurQY;
+      Inc(StepsMoved);
+      Continue;
+    end;
+
+    // Still in same quadrant: check obstacle
+    sx := nextX mod 8;
+    sy := nextY mod 8;
+
+    if Quadrant[sy, sx] <> scEmpty then
+    begin
+      AddMessage('Movement blocked by object.');
+      Break;
+    end;
+
+    // Move into next sector
+    EnterpriseX := nextX;
+    EnterpriseY := nextY;
+    Inc(StepsMoved);
   end;
 
-  Energy := Energy - Trunc(WarpFactor * 8 + 5);
+  // Update Enterprise marker
+  for sy := 0 to 7 do
+    for sx := 0 to 7 do
+      if Quadrant[sy, sx] = scEnterprise then
+        Quadrant[sy, sx] := scEmpty;
+
+  Quadrant[EnterpriseY mod 8, EnterpriseX mod 8] := scEnterprise;
+
+  // Energy cost based on actual movement
+  Energy := Energy - (StepsMoved + 5);
+  if Energy < 0 then Energy := 0;
+
   Stardates := Stardates - 1;
 
   DoNormalRepairs;
@@ -496,8 +611,8 @@ var
 begin
   if Damage[dsPhasers] > 0 then
   begin
-    AddMessage('Phasers inoperable.');
-    Exit;
+	AddMessage('Phasers inoperable.');
+	Exit;
   end;
 
   if (EnergyToFire <= 0) or (EnergyToFire > Energy) then
@@ -540,14 +655,14 @@ var
 begin
   if Damage[dsTorpedoes] > 0 then
   begin
-    AddMessage('Torpedo tubes not operational.');
-    Exit;
+	AddMessage('Torpedo tubes not operational.');
+	Exit;
   end;
 
   if Torpedoes = 0 then
   begin
-    AddMessage('All torpedoes expended.');
-    Exit;
+	AddMessage('All torpedoes expended.');
+	Exit;
   end;
 
   Torpedoes := Torpedoes - 1;
@@ -649,14 +764,17 @@ begin
   begin
     line := '';
     for col := Max(qx - 1, 0) to Min(qx + 1, 7) do
-    begin
-      Galaxy[row, col].Scanned := True;
-      line := line + Format('%3d ',
-        [Galaxy[row, col].Klingons * 100 +
-         Galaxy[row, col].Bases * 10 +
-         Galaxy[row, col].Stars]);
-    end;
-    AddMessage(line);
+	begin
+	  // Only store scan if computer is working
+	  if Damage[dsComputer] = 0 then
+		Galaxy[row, col].Scanned := True;
+
+	  line := line + Format('%3d ',
+		[Galaxy[row, col].Klingons * 100 +
+		 Galaxy[row, col].Bases * 10 +
+		 Galaxy[row, col].Stars]);
+	end;
+	AddMessage(line);
   end;
 end;
 
@@ -688,14 +806,16 @@ begin
 
   Shields := Shields - TotalHit;
 
-  AddMessage(IntToStr(TotalHit) + ' unit hit on Enterprise.');
+  if Damage[dsSRScan] > 0 then
+	AddMessage('Sensors unclear — Klingon attack detected!')
+  else
+	AddMessage(IntToStr(TotalHit) + ' unit hit on Enterprise.');
 
   if Random * Max(Shields, 1) < TotalHit then
     DoRandomDamage;
 
   if Shields < 0 then
   begin
-    AddMessage('The Enterprise has been destroyed.');
     FGameOver := True;
   end;
 end;
