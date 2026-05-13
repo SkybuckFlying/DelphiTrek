@@ -12,7 +12,7 @@ type
   TQuadrant = array[0..7, 0..7] of TSector;
 
   TGxyCell = record
-    Klingons: Integer;
+	Klingons: Integer;
     Bases: Integer;
     Stars: Integer;
     Scanned: Boolean;
@@ -50,46 +50,47 @@ type
     FMessages: TArray<string>;
     FGameOver: Boolean;
     FCondition: string;
-    function RemainingKlingons: Integer;
   public
-    Galaxy: TGalaxy;
-    Quadrant: TQuadrant;
-    Klingons: array[0..2] of TKlingon;
+	Galaxy: TGalaxy;
+	Quadrant: TQuadrant;
+	Klingons: array[0..2] of TKlingon;
 
-    EnterpriseX: Integer;   // 0..63
-    EnterpriseY: Integer;   // 0..63
+	EnterpriseX: Integer;   // 0..63
+	EnterpriseY: Integer;   // 0..63
 
-    Energy: Integer;
-    Shields: Integer;
-    Torpedoes: Integer;
-    Stardates: Integer;
+	Energy: Integer;
+	Shields: Integer;
+	Torpedoes: Integer;
+	Stardates: Integer;
 
-    Damage: TDamageArray;
+	Damage: TDamageArray;
 
-    constructor Create(ARenderer: ITrekRenderer);
+	constructor Create(ARenderer: ITrekRenderer);
 
-    procedure InitializeGame;
-    procedure InitializeQuadrant;
+	procedure InitializeGame;
+	procedure InitializeQuadrant;
 
-    procedure AddMessage(const S: string);
-    procedure ClearMessages;
-    procedure RefreshScreen;
+	procedure AddMessage(const S: string);
+	procedure ClearMessages;
+	procedure RefreshScreen;
 
-    procedure DoWarp(Course: Integer; WarpFactor: Double);
-    procedure FirePhasers(EnergyToFire: Integer);
-    procedure FireTorpedo(Course: Integer);
-    procedure SetShields(NewValue: Integer);
-    procedure DoLongRangeScan;
+	procedure DoWarp(Course: Integer; WarpFactor: Double);
+	procedure FirePhasers(EnergyToFire: Integer);
+	procedure FireTorpedo(Course: Integer);
+	procedure SetShields(NewValue: Integer);
+	procedure DoLongRangeScan;
 
-    procedure DoNormalRepairs;
-    procedure DoRandomRepair;
-    procedure DoRandomDamage;
-    procedure UpdateCondition;
-    procedure KlingonAttack;
+	procedure DoNormalRepairs;
+	procedure DoRandomRepair;
+	procedure DoRandomDamage;
+	procedure UpdateCondition;
+	procedure KlingonAttack;
 
-    function DistanceToKlingon(Index: Integer): Double;
-    procedure DestroyKlingon(Index: Integer);
-    procedure DestroyKlingonAt(Row, Col: Integer);
+	function RemainingKlingons: Integer;
+
+	function DistanceToKlingon(Index: Integer): Double;
+	procedure DestroyKlingon(Index: Integer);
+	procedure DestroyKlingonAt(Row, Col: Integer);
     function IsDocked: Boolean;
     function DamageName(Sys: TDamageSystem): string;
 
@@ -155,7 +156,7 @@ begin
     for col := 0 to 7 do
     begin
       r := Random;
-      k := 0; b := 0; s := 0;
+	  k := 0; b := 0; s := 0;
 
       if r > 0.80 then k := 1;
       if r > 0.95 then k := 2;
@@ -355,7 +356,7 @@ end;
 
 procedure TGameState.UpdateCondition;
 var
-  qx, qy, i, j: Integer;
+  qx, qy : Integer;
 begin
   if IsDocked then
   begin
